@@ -12,6 +12,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func (m *Mount) Stat() unix.Statfs_t {
+	return m.Metadata.(unix.Statfs_t)
+}
+
 func mounts() ([]Mount, []string, error) {
 	var warnings []string
 
@@ -39,8 +43,8 @@ func mounts() ([]Mount, []string, error) {
 		mountOpts := fields[5]
 
 		fields = strings.Fields(parts[1])
-		fstype := fields[0]
-		device := fields[1]
+		fstype := unescapeFstab(fields[0])
+		device := unescapeFstab(fields[1])
 
 		var stat unix.Statfs_t
 		err := unix.Statfs(mountPoint, &stat)
@@ -59,7 +63,7 @@ func mounts() ([]Mount, []string, error) {
 			Fstype:     fstype,
 			Type:       fsTypeMap[int64(stat.Type)],
 			Opts:       mountOpts,
-			Stat:       stat,
+			Metadata:   stat,
 			Total:      (uint64(stat.Blocks) * uint64(stat.Bsize)),
 			Free:       (uint64(stat.Bavail) * uint64(stat.Bsize)),
 			Used:       (uint64(stat.Blocks) - uint64(stat.Bfree)) * uint64(stat.Bsize),

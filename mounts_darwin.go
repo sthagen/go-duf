@@ -6,6 +6,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func (m *Mount) Stat() unix.Statfs_t {
+	return m.Metadata.(unix.Statfs_t)
+}
+
 func mounts() ([]Mount, []string, error) {
 	var ret []Mount
 	var warnings []string
@@ -72,14 +76,14 @@ func mounts() ([]Mount, []string, error) {
 			Fstype:     fsType,
 			Type:       fsType,
 			Opts:       opts,
-			Stat:       stat,
-			Total:      (uint64(stat.Blocks) * uint64(stat.Bsize)),
-			Free:       (uint64(stat.Bavail) * uint64(stat.Bsize)),
-			Used:       (uint64(stat.Blocks) - uint64(stat.Bfree)) * uint64(stat.Bsize),
+			Metadata:   stat,
+			Total:      stat.Blocks * uint64(stat.Bsize),
+			Free:       stat.Bavail * uint64(stat.Bsize),
+			Used:       (stat.Blocks - stat.Bfree) * uint64(stat.Bsize),
 			Inodes:     stat.Files,
 			InodesFree: stat.Ffree,
 			InodesUsed: stat.Files - stat.Ffree,
-			Blocks:     uint64(stat.Blocks),
+			Blocks:     stat.Blocks,
 			BlockSize:  uint64(stat.Bsize),
 		}
 		d.DeviceType = deviceType(d)

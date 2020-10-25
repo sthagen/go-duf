@@ -5,7 +5,7 @@
 [![Go ReportCard](http://goreportcard.com/badge/muesli/duf)](http://goreportcard.com/report/muesli/duf)
 [![GoDoc](https://godoc.org/github.com/golang/gddo?status.svg)](https://pkg.go.dev/github.com/muesli/duf)
 
-Disk Usage/Free Utility (Linux, BSD & macOS)
+Disk Usage/Free Utility (Linux, BSD, macOS & Windows)
 
 ![duf](/duf.png)
 
@@ -21,14 +21,24 @@ Disk Usage/Free Utility (Linux, BSD & macOS)
 
 ### Packages
 
+#### Linux
 - Arch Linux: [duf](https://aur.archlinux.org/packages/duf/)
-- macOS: `brew install muesli/homebrew-tap/duf`
 - Nix: `nix-env -iA nixpkgs.duf`
-- [Packages](https://github.com/muesli/duf/releases) in Debian & RPM formats
+- [Packages](https://github.com/muesli/duf/releases) in Alpine, Debian & RPM formats
+
+#### BSD
+- FreeBSD: `pkg install duf`
+
+#### macOS
+- macOS:
+  - with [Homebrew](https://brew.sh/): `brew tap muesli/tap && brew install duf`
+  - with [MacPorts](https://www.macports.org): `sudo port selfupdate && sudo port install duf`
+
+#### Android
+- Android (via termux): `pkg install duf`
 
 ### Binaries
-
-- [Binaries](https://github.com/muesli/duf/releases) for Linux, FreeBSD, macOS
+- [Binaries](https://github.com/muesli/duf/releases) for Linux, FreeBSD, OpenBSD, macOS, Windows
 
 ### From source
 
@@ -55,6 +65,10 @@ You can hide individual tables:
 
     duf --hide-local --hide-network --hide-fuse --hide-special --hide-loops --hide-binds
 
+You can also hide specific filesystems:
+
+    duf --hide-fs tmpfs,vfat
+
 List inode information instead of block usage:
 
     duf --inodes
@@ -73,6 +87,17 @@ Show or hide specific columns:
 Valid keys are: `mountpoint`, `size`, `used`, `avail`, `usage`, `inodes`,
 `inodes_used`, `inodes_avail`, `inodes_usage`, `type`, `filesystem`.
 
+If duf doesn't detect your terminal's colors correctly, you can set a theme:
+
+    duf --theme light
+
 If you prefer your output as JSON:
 
     duf --json
+
+## Troubleshooting
+
+Users of `oh-my-zsh` should be aware that it already defines an alias called
+`duf`, which you will have to remove in order to use `duf`:
+
+    unalias duf
