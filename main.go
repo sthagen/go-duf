@@ -19,14 +19,14 @@ var (
 	term  = termenv.EnvColorProfile()
 	theme Theme
 
+	groups        = []string{localDevice, networkDevice, fuseDevice, specialDevice, loopsDevice, bindsMount}
+	allowedValues = strings.Join(groups, ", ")
+
 	all         = flag.Bool("all", false, "include pseudo, duplicate, inaccessible file systems")
-	hideLocal   = flag.Bool("hide-local", false, "hide local devices")
-	hideNetwork = flag.Bool("hide-network", false, "hide network devices")
-	hideFuse    = flag.Bool("hide-fuse", false, "hide fuse devices")
-	hideSpecial = flag.Bool("hide-special", false, "hide special devices")
-	hideLoops   = flag.Bool("hide-loops", true, "hide loop devices")
-	hideBinds   = flag.Bool("hide-binds", true, "hide bind mounts")
+	hideDevices = flag.String("hide", "", "hide specific devices, separated with commas:\n"+allowedValues)
 	hideFs      = flag.String("hide-fs", "", "hide specific filesystems, separated with commas")
+	onlyDevices = flag.String("only", "", "show only specific devices, separated with commas:\n"+allowedValues)
+	onlyFs      = flag.String("only-fs", "", "only specific filesystems, separated with commas")
 
 	output   = flag.String("output", "", "output fields: "+strings.Join(columnIDs(), ", "))
 	sortBy   = flag.String("sort", "mountpoint", "sort output by: "+strings.Join(columnIDs(), ", "))
@@ -39,69 +39,6 @@ var (
 	warns      = flag.Bool("warnings", false, "output all warnings to STDERR")
 	version    = flag.Bool("version", false, "display version")
 )
-
-// renderTables renders all tables.
-func renderTables(m []Mount, columns []int, sortCol int, style table.Style) {
-	var local, network, fuse, special []Mount
-	hideFsMap := parseHideFs(*hideFs)
-
-	// sort/filter devices
-	for _, v := range m {
-		// skip hideFs
-		if _, ok := hideFsMap[v.Fstype]; ok {
-			continue
-		}
-		// skip autofs
-		if v.Fstype == "autofs" {
-			continue
-		}
-		// skip bind-mounts
-		if *hideBinds && !*all && strings.Contains(v.Opts, "bind") {
-			continue
-		}
-		// skip loop devices
-		if *hideLoops && !*all && strings.HasPrefix(v.Device, "/dev/loop") {
-			continue
-		}
-		// skip special devices
-		if v.Blocks == 0 && !*all {
-			continue
-		}
-		// skip zero size devices
-		if v.BlockSize == 0 && !*all {
-			continue
-		}
-
-		if isNetworkFs(v) {
-			network = append(network, v)
-			continue
-		}
-		if isFuseFs(v) {
-			fuse = append(fuse, v)
-			continue
-		}
-		if isSpecialFs(v) {
-			special = append(special, v)
-			continue
-		}
-
-		local = append(local, v)
-	}
-
-	// print tables
-	if !*hideLocal || *all {
-		printTable("local", local, sortCol, columns, style)
-	}
-	if !*hideNetwork || *all {
-		printTable("network", network, sortCol, columns, style)
-	}
-	if !*hideFuse || *all {
-		printTable("FUSE", fuse, sortCol, columns, style)
-	}
-	if !*hideSpecial || *all {
-		printTable("special", special, sortCol, columns, style)
-	}
-}
 
 // renderJSON encodes the JSON output and prints it.
 func renderJSON(m []Mount) error {
@@ -144,21 +81,42 @@ func parseStyle(styleOpt string) (table.Style, error) {
 	case "ascii":
 		return table.StyleDefault, nil
 	default:
-		return table.Style{}, fmt.Errorf("Unknown style option: %s", styleOpt)
+		return table.Style{}, fmt.Errorf("unknown style option: %s", styleOpt)
 	}
 }
 
-// parseHideFs parses the supplied hide-fs flag into a map of fs types which should be skipped.
-func parseHideFs(hideFs string) map[string]struct{} {
-	hideMap := make(map[string]struct{})
-	for _, fs := range strings.Split(hideFs, ",") {
-		fs = strings.TrimSpace(fs)
-		if len(fs) == 0 {
+// parseCommaSeparatedValues parses comma separated string into a map.
+func parseCommaSeparatedValues(values string) map[string]struct{} {
+	m := make(map[string]struct{})
+	for _, v := range strings.Split(values, ",") {
+		v = strings.TrimSpace(v)
+		if len(v) == 0 {
 			continue
 		}
-		hideMap[fs] = struct{}{}
+
+		v = strings.ToLower(v)
+		m[v] = struct{}{}
 	}
-	return hideMap
+	return m
+}
+
+// validateGroups validates the parsed group maps.
+func validateGroups(m map[string]struct{}) error {
+	for k := range m {
+		found := false
+		for _, g := range groups {
+			if g == k {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return fmt.Errorf("unknown device group: %s", k)
+		}
+	}
+
+	return nil
 }
 
 func main() {
@@ -181,20 +139,38 @@ func main() {
 		os.Exit(0)
 	}
 
-	// validate flags
-	var err error
+	// read mount table
+	m, warnings, err := mounts()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	// print JSON
+	if *jsonOutput {
+		err := renderJSON(m)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+
+		return
+	}
+
+	// validate theme
 	theme, err = loadTheme(*themeOpt)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
+	// validate style
 	style, err := parseStyle(*styleOpt)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
+	// validate output columns
 	columns, err := parseColumns(*output)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -209,10 +185,53 @@ func main() {
 		}
 	}
 
+	// validate sort column
 	sortCol, err := stringToSortIndex(*sortBy)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+
+	// validate filters
+	filters := FilterOptions{
+		HiddenDevices:     parseCommaSeparatedValues(*hideDevices),
+		OnlyDevices:       parseCommaSeparatedValues(*onlyDevices),
+		HiddenFilesystems: parseCommaSeparatedValues(*hideFs),
+		OnlyFilesystems:   parseCommaSeparatedValues(*onlyFs),
+	}
+	err = validateGroups(filters.HiddenDevices)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	err = validateGroups(filters.OnlyDevices)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	// validate arguments
+	if len(flag.Args()) > 0 {
+		var mounts []Mount
+
+		for _, v := range flag.Args() {
+			fm, err := findMounts(m, v)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+
+			mounts = append(mounts, fm...)
+		}
+
+		m = mounts
+	}
+
+	// print out warnings
+	if *warns {
+		for _, warning := range warnings {
+			fmt.Fprintln(os.Stderr, warning)
+		}
 	}
 
 	// detect terminal width
@@ -227,30 +246,10 @@ func main() {
 		*width = 80
 	}
 
-	// read mount table
-	m, warnings, err := mounts()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	// print out warnings
-	if *warns {
-		for _, warning := range warnings {
-			fmt.Fprintln(os.Stderr, warning)
-		}
-	}
-
-	// print JSON
-	if *jsonOutput {
-		err := renderJSON(m)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
-
-		return
-	}
-
 	// print tables
-	renderTables(m, columns, sortCol, style)
+	renderTables(m, filters, TableOptions{
+		Columns: columns,
+		SortBy:  sortCol,
+		Style:   style,
+	})
 }

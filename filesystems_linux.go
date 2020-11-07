@@ -264,5 +264,20 @@ func isNetworkFs(m Mount) bool {
 }
 
 func isSpecialFs(m Mount) bool {
+	if m.Device == "nsfs" {
+		return true
+	}
+
 	return specialMap[int64(m.Stat().Type)]
+}
+
+func isHiddenFs(m Mount) bool {
+	switch m.Device {
+	case "shm":
+		return true
+	case "overlay":
+		return true
+	}
+
+	return m.Fstype == "autofs"
 }
