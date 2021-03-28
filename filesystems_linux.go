@@ -2,6 +2,8 @@
 
 package main
 
+import "strings"
+
 const (
 	// man statfs
 	ADFS_SUPER_MAGIC      = 0xadf5
@@ -240,6 +242,7 @@ var specialMap = map[int64]bool{
 	DEBUGFS_MAGIC:          true,
 	DEVPTS_SUPER_MAGIC:     true,
 	EFIVARFS_MAGIC:         true,
+	FUSECTL_SUPER_MAGIC:    true,
 	HUGETLBFS_MAGIC:        true,
 	MQUEUE_MAGIC:           true,
 	PROC_SUPER_MAGIC:       true,
@@ -251,7 +254,7 @@ var specialMap = map[int64]bool{
 }
 
 func isLocalFs(m Mount) bool {
-	return localMap[int64(m.Stat().Type)]
+	return localMap[int64(m.Stat().Type)] //nolint:unconvert
 }
 
 func isFuseFs(m Mount) bool {
@@ -260,7 +263,7 @@ func isFuseFs(m Mount) bool {
 }
 
 func isNetworkFs(m Mount) bool {
-	return networkMap[int64(m.Stat().Type)]
+	return networkMap[int64(m.Stat().Type)] //nolint:unconvert
 }
 
 func isSpecialFs(m Mount) bool {
@@ -268,7 +271,7 @@ func isSpecialFs(m Mount) bool {
 		return true
 	}
 
-	return specialMap[int64(m.Stat().Type)]
+	return specialMap[int64(m.Stat().Type)] //nolint:unconvert
 }
 
 func isHiddenFs(m Mount) bool {
@@ -279,5 +282,14 @@ func isHiddenFs(m Mount) bool {
 		return true
 	}
 
-	return m.Fstype == "autofs"
+	switch m.Fstype {
+	case "autofs":
+		return true
+	case "squashfs":
+		if strings.HasPrefix(m.Mountpoint, "/snap") {
+			return true
+		}
+	}
+
+	return false
 }
