@@ -2,7 +2,7 @@
 
 [![Latest Release](https://img.shields.io/github/release/muesli/duf.svg)](https://github.com/muesli/duf/releases)
 [![Build Status](https://github.com/muesli/duf/workflows/build/badge.svg)](https://github.com/muesli/duf/actions)
-[![Go ReportCard](http://goreportcard.com/badge/muesli/duf)](http://goreportcard.com/report/muesli/duf)
+[![Go ReportCard](https://goreportcard.com/badge/muesli/duf)](https://goreportcard.com/report/muesli/duf)
 [![GoDoc](https://godoc.org/github.com/golang/gddo?status.svg)](https://pkg.go.dev/github.com/muesli/duf)
 
 Disk Usage/Free Utility (Linux, BSD, macOS & Windows)
@@ -47,7 +47,7 @@ Disk Usage/Free Utility (Linux, BSD, macOS & Windows)
 ### From source
 
 Make sure you have a working Go environment (Go 1.12 or higher is required).
-See the [install instructions](http://golang.org/doc/install.html).
+See the [install instructions](https://golang.org/doc/install.html).
 
 Compiling duf is easy, simply run:
 
@@ -69,6 +69,8 @@ If you want to list everything (including pseudo, duplicate, inaccessible file s
 
     duf --all
 
+### Filtering
+
 You can show and hide specific tables:
 
     duf --only local,network,fuse,special,loops,binds
@@ -78,6 +80,17 @@ You can also show and hide specific filesystems:
 
     duf --only-fs tmpfs,vfat
     duf --hide-fs tmpfs,vfat
+
+...or specific mount points:
+
+    duf --only-mp /,/home,/dev
+    duf --hide-mp /,/home,/dev
+
+Wildcards inside quotes work:
+
+    duf --only-mp '/sys/*,/dev/*'
+
+### Display options
 
 Sort the output:
 
@@ -100,6 +113,8 @@ List inode information instead of block usage:
 If duf doesn't detect your terminal's colors correctly, you can set a theme:
 
     duf --theme light
+
+### Bonus
 
 If you prefer your output as JSON:
 
